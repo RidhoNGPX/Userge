@@ -1,6 +1,6 @@
 # pylint: disable=missing-module-docstring
 #
-# Copyright (C) 2020-2021 by UsergeTeam@Github, < https://github.com/UsergeTeam >.
+# Copyright (C) 2020-2022 by UsergeTeam@Github, < https://github.com/UsergeTeam >.
 #
 # This file is part of < https://github.com/UsergeTeam/Userge > project,
 # and is released under the "GNU v3.0 License Agreement".
@@ -25,7 +25,6 @@ from userge.utils.exceptions import StopConversation
 from ... import client as _client  # pylint: disable=unused-import
 
 _LOG = logging.getLogger(__name__)
-_LOG_STR = "<<<!  :::::  %s  :::::  !>>>"
 
 _CL_TYPE = Union['_client.Userge', '_client.UsergeBot']
 _CONV_DICT: Dict[Tuple[int, _CL_TYPE], Union[asyncio.Queue, Tuple[int, asyncio.Queue]]] = {}
@@ -190,7 +189,7 @@ class Conversation:
         pack = (self._chat_id, self._client)
         if pack in _CONV_DICT:
             error = f"already started conversation {self._client} with {self._chat_id} !"
-            _LOG.error(_LOG_STR, error)
+            _LOG.error(error)
             raise StopConversation(error)
         if self._user:
             self._user_id = int(self._user) if isinstance(self._user, int) else \
@@ -215,5 +214,5 @@ class Conversation:
             error = (f"ended conversation {self._client} with {self._chat_id}, "
                      "message limit reached!")
         if error:
-            _LOG.error(_LOG_STR, error)
+            _LOG.error(error)
             raise StopConversation(error)

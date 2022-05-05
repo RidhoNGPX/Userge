@@ -1,6 +1,6 @@
 # pylint: disable=missing-module-docstring
 #
-# Copyright (C) 2020-2021 by UsergeTeam@Github, < https://github.com/UsergeTeam >.
+# Copyright (C) 2020-2022 by UsergeTeam@Github, < https://github.com/UsergeTeam >.
 #
 # This file is part of < https://github.com/UsergeTeam/Userge > project,
 # and is released under the "GNU v3.0 License Agreement".
@@ -15,19 +15,19 @@ import time
 import asyncio
 from traceback import format_exc
 from functools import partial
-from typing import List, Dict, Union, Any, Callable, Optional
+from typing import List, Dict, Union, Any, Callable, Optional, Awaitable
 
 from pyrogram import StopPropagation, ContinuePropagation
 from pyrogram.filters import Filter as RawFilter
 from pyrogram.types import Message as RawMessage, ChatMember
 from pyrogram.errors.exceptions.bad_request_400 import PeerIdInvalid, UserNotParticipant
 
-from userge import logging, Config
+from userge import logging, config
+from userge.plugins.builtin import sudo, system
 from ...ext import RawClient
 from ... import types, client as _client  # pylint: disable=unused-import
 
 _LOG = logging.getLogger(__name__)
-_LOG_STR = "<<<!  :::::  %s  :::::  !>>>"
 
 _PYROFUNC = Callable[['types.bound.Message'], Any]
 _TASK_1_START_TO = time.time()
@@ -93,8 +93,8 @@ def _clear_cht() -> None:
 async def _init(r_m: RawMessage) -> None:
     if r_m.from_user and (
         r_m.from_user.is_self or (
-            r_m.from_user.id in Config.SUDO_USERS) or (
-                r_m.from_user.id in Config.OWNER_ID)):
+            r_m.from_user.id in sudo.USERS) or (
+                r_m.from_user.id in config.OWNER_ID)):
         RawClient.LAST_OUTGOING_TIME = time.time()
 
 
@@ -209,11 +209,27 @@ class RawDecorator(RawClient):
 
     def __init__(self, **kwargs) -> None:
         self.manager = types.new.Manager(self)
-        self._tasks: List[Callable[[], Any]] = []
         super().__init__(**kwargs)
 
+    def add_task(self, task: Callable[[], Awaitable[Any]]) -> Callable[[], Awaitable[Any]]:
+        """ add a background task which is attached to this plugin. """
+        self.manager.get_plugin(task.__module__).add_task(task)
+        return task
+
+    def on_start(self, callback: Callable[[], Awaitable[Any]]) -> None:
+        """ set a callback to calls when the plugin is loaded """
+        self.manager.get_plugin(callback.__module__).set_on_start_callback(callback)
+
+    def on_stop(self, callback: Callable[[], Awaitable[Any]]) -> None:
+        """ set a callback to calls when the plugin is unloaded """
+        self.manager.get_plugin(callback.__module__).set_on_stop_callback(callback)
+
+    def on_exit(self, callback: Callable[[], Awaitable[Any]]) -> None:
+        """ set a callback to calls when the userge is exiting """
+        self.manager.get_plugin(callback.__module__).set_on_exit_callback(callback)
+
     def on_filters(self, filters: RawFilter, group: int = 0,
-                   **kwargs: Union[bool]) -> 'RawDecorator._PYRORETTYPE':
+                   **kwargs: Union[str, bool]) -> 'RawDecorator._PYRORETTYPE':
         """ abstract on filter method """
 
     def _build_decorator(self,
@@ -222,12 +238,15 @@ class RawDecorator(RawClient):
         def decorator(func: _PYROFUNC) -> _PYROFUNC:
             async def template(r_c: Union['_client.Userge', '_client.UsergeBot'],
                                r_m: RawMessage) -> None:
-                if Config.DISABLED_ALL and r_m.chat.id != Config.LOG_CHANNEL_ID:
-                    return
-                if r_m.chat and r_m.chat.id in Config.DISABLED_CHATS:
-                    return
-                if Config.IGNORE_VERIFIED_CHATS and r_m.from_user and r_m.from_user.is_verified:
-                    return
+                await self.manager.wait()
+
+                if system.Dynamic.DISABLED_ALL and r_m.chat.id != config.LOG_CHANNEL_ID:
+                    raise StopPropagation
+                if r_m.chat and r_m.chat.id in system.DISABLED_CHATS:
+                    raise StopPropagation
+                if config.IGNORE_VERIFIED_CHATS and r_m.from_user and r_m.from_user.is_verified:
+                    raise StopPropagation
+
                 await _init(r_m)
                 _raise = partial(_raise_func, r_c, r_m)
                 if r_m.chat and r_m.chat.type not in flt.scope:
@@ -281,11 +300,12 @@ class RawDecorator(RawClient):
                             if isinstance(flt, types.raw.Command):
                                 await _raise("`required permission [pin_messages]`")
                             return
+
                 if RawClient.DUAL_MODE and (
                     flt.check_client or (
                         r_m.from_user and r_m.from_user.id != RawClient.USER_ID
-                        and (r_m.from_user.id in Config.OWNER_ID
-                             or r_m.from_user.id in Config.SUDO_USERS))):
+                        and (r_m.from_user.id in config.OWNER_ID
+                             or r_m.from_user.id in sudo.USERS))):
                     cond = True
                     async with await _get_lock(str(flt)):
                         if flt.only_admins:
@@ -293,29 +313,38 @@ class RawDecorator(RawClient):
                         if flt.check_perm:
                             cond = cond and await _both_have_perm(flt, r_c, r_m, is_bot)
                         if cond:
-                            if Config.USE_USER_FOR_CLIENT_CHECKS:
+                            if config.Dynamic.USER_IS_PREFERRED:
                                 if isinstance(r_c, _client.UsergeBot):
                                     return
                             elif await _bot_is_present(r_c, r_m, is_bot) and isinstance(
                                     r_c, _client.Userge):
                                 return
-                if flt.check_downpath and not os.path.isdir(Config.DOWN_PATH):
-                    os.makedirs(Config.DOWN_PATH)
+
+                if flt.check_downpath and not os.path.isdir(config.Dynamic.DOWN_PATH):
+                    os.makedirs(config.Dynamic.DOWN_PATH)
+
                 try:
                     await func(types.bound.Message.parse(
-                        r_c, r_m, module=func.__module__, **kwargs))
+                        r_c, r_m, module=module, **kwargs))
                 except (StopPropagation, ContinuePropagation):  # pylint: disable=W0706
                     raise
                 except Exception as f_e:  # pylint: disable=broad-except
-                    _LOG.exception(_LOG_STR, f_e)
-                    await self._channel.log(f"**PLUGIN** : `{func.__module__}`\n"
+                    _LOG.exception(f_e)
+                    await self._channel.log(f"**PLUGIN** : `{module}`\n"
                                             f"**FUNCTION** : `{func.__name__}`\n"
                                             f"**ERROR** : `{f_e or None}`\n"
                                             f"\n```{format_exc().strip()}```",
                                             "TRACEBACK")
+                finally:
+                    if flt.propagate:
+                        raise ContinuePropagation
+                    if flt.propagate is not None:
+                        raise StopPropagation
+
+            module = func.__module__
+
             flt.update(func, template)
-            self.manager.get_plugin(func.__module__).add(flt)
-            _LOG.debug(_LOG_STR, f"Imported => [ async def {func.__name__}(message) ] "
-                       f"from {func.__module__} {flt}")
+            self.manager.get_plugin(module).add(flt)
+
             return func
         return decorator

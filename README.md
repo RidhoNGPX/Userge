@@ -1,6 +1,6 @@
 <p align="center">
     <a href="https://github.com/UsergeTeam/Userge">
-        <img src="resources/userge.png" alt="Userge">
+        <img src="https://telegra.ph/file/f3aed2f6f2d4a1ad7831d.png" alt="Userge">
     </a>
     <br>
     <b>Pluggable Telegram UserBot</b>
@@ -49,9 +49,9 @@
 
 > Special Thanks to all of you !!!.
 
-## [Documentation](http://theuserge.tech) 📘
+## [Documentation](https://theuserge.github.io) 📘
 
-## [Deployment](http://theuserge.tech/deployment) 👷
+## [Deployment](https://theuserge.github.io/deployment) 👷
 
 ## [Plugins](https://github.com/UsergeTeam/Userge-Plugins) 🔌
 
@@ -66,5 +66,5 @@
 
 ### Copyright & License 👮
 
-* Copyright (C) 2020 - 2021 by [UsergeTeam](https://github.com/UsergeTeam) ❤️️
+* Copyright (C) 2020 - 2022 by [UsergeTeam](https://github.com/UsergeTeam) ❤️️
 * Licensed under the terms of the [GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007](https://github.com/UsergeTeam/Userge/blob/master/LICENSE)

@@ -1,6 +1,6 @@
 # pylint: disable=missing-module-docstring
 #
-# Copyright (C) 2020-2021 by UsergeTeam@Github, < https://github.com/UsergeTeam >.
+# Copyright (C) 2020-2022 by UsergeTeam@Github, < https://github.com/UsergeTeam >.
 #
 # This file is part of < https://github.com/UsergeTeam/Userge > project,
 # and is released under the "GNU v3.0 License Agreement".
@@ -18,8 +18,7 @@ from pyrogram.types import (
     InlineKeyboardMarkup, ReplyKeyboardMarkup,
     ReplyKeyboardRemove, ForceReply, MessageEntity)
 
-from userge import Config
-from userge.utils import secure_text
+from userge import config
 from ... import types
 from ...ext import RawClient
 
@@ -36,6 +35,7 @@ class SendMessage(RawClient):  # pylint: disable=missing-class-docstring
                            disable_notification: Optional[bool] = None,
                            reply_to_message_id: Optional[int] = None,
                            schedule_date: Optional[int] = None,
+                           protect_content: Optional[bool] = None,
                            reply_markup: Union[InlineKeyboardMarkup,
                                                ReplyKeyboardMarkup,
                                                ReplyKeyboardRemove,
@@ -88,6 +88,9 @@ class SendMessage(RawClient):  # pylint: disable=missing-class-docstring
             schedule_date (``int``, *optional*):
                 Date when the message will be automatically sent. Unix time.
 
+            protect_content (``bool``, *optional*):
+                Protects the contents of the sent message from forwarding and saving.
+
             reply_markup (:obj:`InlineKeyboardMarkup` | :obj:`ReplyKeyboardMarkup`
             | :obj:`ReplyKeyboardRemove` | :obj:`ForceReply`, *optional*):
                 Additional interface options. An object for an inline keyboard,
@@ -97,8 +100,6 @@ class SendMessage(RawClient):  # pylint: disable=missing-class-docstring
         Returns:
             :obj:`Message`: On success, the sent text message or True is returned.
         """
-        if text and chat_id not in Config.AUTH_CHATS:
-            text = secure_text(str(text))
         msg = await super().send_message(chat_id=chat_id,
                                          text=text,
                                          parse_mode=parse_mode,
@@ -107,11 +108,12 @@ class SendMessage(RawClient):  # pylint: disable=missing-class-docstring
                                          disable_notification=disable_notification,
                                          reply_to_message_id=reply_to_message_id,
                                          schedule_date=schedule_date,
+                                         protect_content=protect_content,
                                          reply_markup=reply_markup)
         module = inspect.currentframe().f_back.f_globals['__name__']
         if log:
             await self._channel.fwd_msg(msg, module if isinstance(log, bool) else log)
-        del_in = del_in or Config.MSG_DELETE_TIMEOUT
+        del_in = del_in or config.Dynamic.MSG_DELETE_TIMEOUT
         if del_in > 0:
             await asyncio.sleep(del_in)
             return bool(await msg.delete())
